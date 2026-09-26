@@ -37,7 +37,7 @@ Configured under `logsentinel.analysis` in `application.yml`. Customer burst use
 
 ## LLM
 
-- Profile `gemini` or `openai` via `LLM_PROVIDER`.
+- Profile `ollama`, `gemini`, or `openai` via `LLM_PROVIDER`.
 - Set `useLlm: false` on analyze to skip agents when quota is limited.
 - `LlmRuntimeConfig` gates agent calls when API key is missing.
 

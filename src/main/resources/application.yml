@@ -2,7 +2,7 @@ spring:
   application:
     name: log-sentinel
   profiles:
-    active: ${LLM_PROVIDER:gemini}
+    active: ${LLM_PROVIDER:ollama}
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
@@ -19,10 +19,16 @@ spring:
             model: ${GEMINI_MODEL:gemini-2.5-flash}
             temperature: 0.2
             max-tokens: 900
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${OLLAMA_MODEL:gemma:2b}
+          temperature: 0.2
 
 logsentinel:
   llm:
-    provider: ${LLM_PROVIDER:gemini}
+    provider: ${LLM_PROVIDER:ollama}
   log-file: ${LOG_FILE_PATH:logs/log-sentinel-app.log}
   analysis:
     high-value-amount-inr: ${HIGH_VALUE_AMOUNT_INR:150000}

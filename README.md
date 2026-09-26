@@ -23,7 +23,7 @@ Spring Boot 3.5 + Spring AI **dual-agent** pipeline over a **rolling log file**.
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine + Compose v2)
-- Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY` in `.env` for LLM steps (`useLlm: true`)
+- Optional: a local Ollama model, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` for LLM steps (`useLlm: true`)
 
 Builds and tests run in Docker (Java 21). Host JDK can be older.
 
@@ -72,7 +72,9 @@ Default log path: `logs/log-sentinel-app.log` (inside the container working dire
 | `HIGH_VALUE_AMOUNT_INR` | `150000` |
 | `CUSTOMER_BURST_WINDOW_MS` | `3000` |
 | `CUSTOMER_DISTINCT_STACK_THRESHOLD` | `3` |
-| `LLM_PROVIDER` | `gemini` |
+| `LLM_PROVIDER` | `ollama` |
+
+For local Ollama, start Ollama, pull the configured model (for example, `ollama pull gemma:2b`), and keep `LLM_PROVIDER=ollama`. When running through Docker Compose, the default URL is `http://host.docker.internal:11434`; set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` in `.env` when needed.
 
 See [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for presenter flow.
 

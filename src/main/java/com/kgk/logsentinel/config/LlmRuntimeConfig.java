@@ -14,18 +14,21 @@ public class LlmRuntimeConfig {
     private final String geminiApiKey;
     private final String openAiModel;
     private final String geminiModel;
+    private final String ollamaModel;
 
     public LlmRuntimeConfig(
             @Value("${logsentinel.llm.provider:gemini}") String provider,
             @Value("${spring.ai.openai.api-key:}") String openAiApiKey,
             @Value("${spring.ai.google.genai.api-key:}") String geminiApiKey,
             @Value("${spring.ai.openai.chat.options.model:gpt-4o-mini}") String openAiModel,
-            @Value("${spring.ai.google.genai.chat.options.model:gemini-2.5-flash}") String geminiModel) {
+            @Value("${spring.ai.google.genai.chat.options.model:gemini-2.5-flash}") String geminiModel,
+            @Value("${spring.ai.ollama.chat.options.model:gemma:2b}") String ollamaModel) {
         this.provider = provider.trim().toLowerCase();
         this.openAiApiKey = openAiApiKey;
         this.geminiApiKey = geminiApiKey;
         this.openAiModel = openAiModel;
         this.geminiModel = geminiModel;
+        this.ollamaModel = ollamaModel;
     }
 
     public String provider() {
@@ -33,11 +36,17 @@ public class LlmRuntimeConfig {
     }
 
     public String activeModelName() {
-        return isOpenAi() ? openAiModel : geminiModel;
+        if (isOpenAi()) {
+            return openAiModel;
+        }
+        return isOllama() ? ollamaModel : geminiModel;
     }
 
     public String displayLabel() {
-        return isOpenAi() ? "OpenAI (" + openAiModel + ")" : "Gemini (" + geminiModel + ")";
+        if (isOpenAi()) {
+            return "OpenAI (" + openAiModel + ")";
+        }
+        return isOllama() ? "Ollama (" + ollamaModel + ")" : "Gemini (" + geminiModel + ")";
     }
 
     public boolean isOpenAi() {
@@ -48,9 +57,16 @@ public class LlmRuntimeConfig {
         return "gemini".equals(provider) || "google-genai".equals(provider);
     }
 
+    public boolean isOllama() {
+        return "ollama".equals(provider);
+    }
+
     public boolean isApiKeyConfigured() {
         if (isOpenAi()) {
             return hasRealKey(openAiApiKey);
+        }
+        if (isOllama()) {
+            return true;
         }
         return hasRealKey(geminiApiKey);
     }
@@ -58,6 +74,9 @@ public class LlmRuntimeConfig {
     public String missingKeyMessage() {
         if (isOpenAi()) {
             return "OPENAI_API_KEY is not configured. Set LLM_PROVIDER=openai and OPENAI_API_KEY in .env.";
+        }
+        if (isOllama()) {
+            return "Ollama is selected. Make sure Ollama is running and the configured model is available.";
         }
         return "GEMINI_API_KEY is not configured. Set LLM_PROVIDER=gemini and GEMINI_API_KEY in .env.";
     }
