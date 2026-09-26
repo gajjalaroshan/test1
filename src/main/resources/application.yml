@@ -10,7 +10,7 @@ spring:
         options:
           model: ${OPENAI_MODEL:gpt-4o-mini}
           temperature: 0.2
-          max-tokens: 900
+          max-tokens: ${LLM_MAX_TOKENS:8192}
     google:
       genai:
         api-key: ${GEMINI_API_KEY:}
@@ -18,18 +18,22 @@ spring:
           options:
             model: ${GEMINI_MODEL:gemini-2.5-flash}
             temperature: 0.2
-            max-tokens: 900
+            max-tokens: ${LLM_MAX_TOKENS:8192}
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
         options:
           model: ${OLLAMA_MODEL:gemma:2b}
           temperature: 0.2
+          num-predict: ${LLM_MAX_TOKENS:8192}
 
 logsentinel:
   llm:
     provider: ${LLM_PROVIDER:ollama}
   log-file: ${LOG_FILE_PATH:logs/log-sentinel-app.log}
+  log-rotation:
+    max-lines-per-file: ${LOG_MAX_LINES_PER_FILE:5000}
+    max-index: ${LOG_MAX_ROLLED_FILES:3}
   analysis:
     high-value-amount-inr: ${HIGH_VALUE_AMOUNT_INR:150000}
     customer-burst-window-ms: ${CUSTOMER_BURST_WINDOW_MS:3000}

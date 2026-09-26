@@ -8,29 +8,28 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
 /**
- * Agent 1 — turns Java metrics into an operator runbook (what to check and how to fix).
- * Does not replace Java counting; focuses on remediation and verification steps.
+ * Agent 1 — technical remediation runbook for engineering leads (not executive/product audiences).
  */
 @Service
 public class RemediationPlannerAgent {
 
     private static final String SYSTEM = """
-            You are Remediation Planner Agent. Produce a crisp, actionable remediation plan from the supplied analysis JSON. Output MUST contain both a compact human-readable markdown report for engineers/Ops and a machine-readable JSON object for automation.
+            You are Remediation Planner Agent for an engineering lead / on-call developer audience.
+            Turn the supplied Java log analysis into a complete technical runbook. Do NOT write product-owner or executive briefs (no business-financial narrative, no "decisions for leadership", no non-technical impact framing).
 
-            REQUIREMENTS (must follow exactly)
-            1. Human summary: 2-4 sentence executive overview (one paragraph).
-            2. Severity: one-line level (INFO/WARN/CRITICAL) + 1-sentence rationale.
-            3. Impact summary: 3 bullet metrics: total API failures, top-3 exception types with counts and %s, top-3 affected customers/orders with counts.
-            4. For each exception type (only those in top-6 by count) provide symptoms, HYPOTHESIS causes, immediate actions, durable fixes, verify recovery, and affected customers/orders.
-            5. Global prioritized remediation checklist (3 items) with owner and ETA (P0/P1).
-            6. Minimal Gaps/Unknowns (1-2 bullets).
+            REQUIREMENTS (follow exactly)
+            1. Incident header: one-line title + severity (INFO/WARN/CRITICAL) with a technical rationale (what broke, which services/paths).
+            2. Evidence (required, detailed): reproduce authoritative counts from the input exactly; cite customerId, orderId, traceId, exception types, stack-signature counts, and FLAGGED_* lines. Include short quoted error fields (exception class, message, path) from the payload when present. This section is for engineers — be specific and complete.
+            3. For each exception type in the top 6 by count: symptoms, likely technical causes, immediate mitigation steps, durable fix, how to verify recovery, and affected customers/orders/traces.
+            4. Flagged entities playbook: for each FLAGGED_CUSTOMER and FLAGGED_ORDER, concrete investigation and remediation steps (what to check in logs/traces, rollback/mitigation).
+            5. Prioritized engineering checklist (at least 5 items) with owner role (Engineering/SRE/Platform) and ETA (P0/P1/P2).
+            6. Gaps/unknowns: bullets for missing telemetry or ambiguous signals.
 
             FORMAT RULES
-            - Produce the human report as Markdown.
-            - After the markdown, output a single machine-readable JSON block in a fenced code block labeled json.
-            - Keep the human-readable section <= 400 words. Keep the JSON complete (full lists).
-            - If full output would exceed model limits, emit the human summary + a compact JSON only; do NOT truncate JSON partially.
-            - Terminate output with sentinel line exactly: ===END REMEDIATION===
+            - Human report as Markdown. Be thorough; do not omit sections to save length.
+            - After the markdown, output one machine-readable JSON object in a fenced code block labeled json (keys: severity, evidence, issuesByType[], flaggedPlaybooks[], checklist[], gaps[]). JSON must be complete — never partial.
+            - Do NOT truncate or abbreviate the report. If you approach output limits, finish the JSON block completely, then end.
+            - Terminate the entire output with this sentinel line exactly: ===END REMEDIATION===
             """;
 
     private final ChatClient chatClient;
@@ -49,7 +48,7 @@ public class RemediationPlannerAgent {
             ChatResponse response = chatClient
                     .prompt()
                     .system(SYSTEM)
-                    .user(javaResult.toAgentPrompt())
+                    .user("Java log analysis (authoritative — cite exactly in Evidence):\n" + javaResult.toAgentPrompt())
                     .call()
                     .chatResponse();
             Usage usage = response.getMetadata().getUsage();

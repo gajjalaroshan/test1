@@ -25,13 +25,10 @@ public record LogAnalysisResult(
 
     public record FlaggedOrder(String orderId, String customerId, double amountInr, double thresholdInr, String reason) {}
 
+    public record CustomerBurstWindow(int distinctStacksInWindow, String windowStart, String windowEnd) {}
+
     public record FlaggedCustomer(
-            String customerId,
-            int distinctStacksInWindow,
-            long windowMs,
-            String windowStart,
-            String windowEnd,
-            String reason) {}
+            String customerId, long windowMs, String reason, List<CustomerBurstWindow> windows) {}
 
     public String toAgentPrompt() {
         StringBuilder sb = new StringBuilder();
@@ -39,13 +36,17 @@ public record LogAnalysisResult(
         if (flaggedCustomers.isEmpty()) {
             sb.append("Flagged customers: none\n");
         } else {
-            flaggedCustomers.forEach(f -> sb.append("FLAGGED_CUSTOMER customerId=")
+            flaggedCustomers.forEach(f -> f.windows().forEach(w -> sb.append("FLAGGED_CUSTOMER customerId=")
                     .append(f.customerId())
                     .append(" distinctStacks=")
-                    .append(f.distinctStacksInWindow())
+                    .append(w.distinctStacksInWindow())
+                    .append(" window=")
+                    .append(w.windowStart())
+                    .append("..")
+                    .append(w.windowEnd())
                     .append(" reason=")
                     .append(f.reason())
-                    .append('\n'));
+                    .append('\n')));
         }
         if (flaggedOrders.isEmpty()) {
             sb.append("Flagged orders: none\n");
@@ -61,7 +62,7 @@ public record LogAnalysisResult(
                     .append('\n'));
         }
         sb.append("=== END RULE FLAGS ===\n\n");
-        sb.append("=== ERROR VOLUME & SPLITS (authoritative counts — reproduce exactly in Agent 1 tables) ===\n");
+        sb.append("=== ERROR VOLUME & SPLITS (authoritative counts — reproduce exactly in remediation evidence) ===\n");
         if (errorBreakdown != null) {
             sb.append("Total API_FAILURE errors: ").append(errorBreakdown.totalApiFailureErrors()).append('\n');
             sb.append("Global split by exception/log type:\n");
@@ -115,10 +116,17 @@ public record LogAnalysisResult(
         sb.append("\nFlagged customers (distinct stack traces > threshold in ").append(
                         flaggedCustomers.isEmpty() ? "3s" : flaggedCustomers.getFirst().windowMs() + "ms")
                 .append("):\n");
-        flaggedCustomers.forEach(f -> sb.append("  - customerId=").append(f.customerId())
-                .append(" distinctStacks=").append(f.distinctStacksInWindow())
-                .append(" window=").append(f.windowStart()).append("..").append(f.windowEnd())
-                .append(" — ").append(f.reason()).append('\n'));
+        flaggedCustomers.forEach(f -> f.windows().forEach(w -> sb.append("  - customerId=")
+                .append(f.customerId())
+                .append(" distinctStacks=")
+                .append(w.distinctStacksInWindow())
+                .append(" window=")
+                .append(w.windowStart())
+                .append("..")
+                .append(w.windowEnd())
+                .append(" — ")
+                .append(f.reason())
+                .append('\n')));
         return sb.toString();
     }
 }

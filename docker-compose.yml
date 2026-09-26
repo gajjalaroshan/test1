@@ -11,7 +11,10 @@ services:
     environment:
       # Defaults when not set in .env (do not inject empty API keys — Spring treats "" as set)
       LOG_FILE_PATH: ${LOG_FILE_PATH:-logs/log-sentinel-app.log}
+      LOG_MAX_LINES_PER_FILE: ${LOG_MAX_LINES_PER_FILE:-5000}
+      LOG_MAX_ROLLED_FILES: ${LOG_MAX_ROLLED_FILES:-3}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma:2b}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}

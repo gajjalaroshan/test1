@@ -3,8 +3,6 @@ package com.kgk.logsentinel.service.agent;
 import com.kgk.logsentinel.domain.analysis.LogAnalysisResult;
 import org.springframework.stereotype.Service;
 
-import java.util.Objects;
-
 @Service
 public class DualAgentOrchestrator {
 
@@ -18,10 +16,9 @@ public class DualAgentOrchestrator {
     }
 
     public DualAgentPipelineResult run(LogAnalysisResult javaResult) {
+        String javaSummary = javaResult.toAgentPrompt();
         AgentStepResult agent1 = remediationPlannerAgent.plan(javaResult);
-        String remediationPlan =
-                Objects.requireNonNullElse(AgentMarkdownFormatter.normalize(agent1.output()), "");
-        AgentStepResult agent2 = executiveReportAgent.report(remediationPlan, javaResult.toAgentPrompt());
+        AgentStepResult agent2 = executiveReportAgent.report(javaSummary);
         return new DualAgentPipelineResult(javaResult, agent1, agent2);
     }
 

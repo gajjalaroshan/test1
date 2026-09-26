@@ -15,7 +15,8 @@ public record LogEvent(
         Double amountInr,
         String exceptionClass,
         String failureMessage,
-        List<String> stackLines) {
+        List<String> stackLines,
+        boolean explicitCustomerId) {
 
     /**
      * Distinguishes failures that share the same exception type and top stack frame (e.g. multiple {@code RuntimeException}s).
@@ -38,7 +39,8 @@ public record LogEvent(
                 amountInr,
                 exceptionClass,
                 failureMessage,
-                stackLines);
+                stackLines,
+                explicitCustomerId);
     }
 
     public static Builder builder() {
@@ -56,6 +58,7 @@ public record LogEvent(
         private Double amountInr;
         private String exceptionClass;
         private String failureMessage;
+        private boolean explicitCustomerId;
         private final List<String> stackLines = new ArrayList<>();
 
         public Builder timestamp(Instant timestamp) {
@@ -85,6 +88,11 @@ public record LogEvent(
 
         public Builder customerId(String customerId) {
             this.customerId = customerId;
+            return this;
+        }
+
+        public Builder explicitCustomerId(boolean explicitCustomerId) {
+            this.explicitCustomerId = explicitCustomerId;
             return this;
         }
 
@@ -129,7 +137,8 @@ public record LogEvent(
                     amountInr,
                     exceptionClass,
                     failureMessage,
-                    List.copyOf(stackLines));
+                    List.copyOf(stackLines),
+                    explicitCustomerId);
         }
     }
 }

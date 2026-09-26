@@ -1,6 +1,6 @@
 # Log Sentinel — architecture
 
-POC for **file-based API log triage**: simulate failing traffic without business `log.error` calls, persist structured errors to a rolling log file, analyze with deterministic Java rules, then optional **two LLM agents** (remediation runbook + executive report).
+POC for **file-based API log triage**: simulate failing traffic without business `log.error` calls, persist structured errors to a **line-count-rotated** log file, analyze with deterministic Java rules, then optional **two LLM agents** (remediation runbook + executive report).
 
 ## System diagram
 
@@ -13,8 +13,6 @@ flowchart TB
 
     subgraph api [Spring Boot APIs]
         TC[TrafficController]
-        TB[TrafficBatchController]
-        TD[TrafficFlaggingDemoController]
         LA[LogAnalysisController]
     end
 
@@ -23,18 +21,22 @@ flowchart TB
     end
 
     subgraph logging [Cross-cutting logging]
+        RTF[RequestTraceFilter]
         GEH[GlobalApiExceptionHandler]
         SAL[StructuredApiErrorLogger]
         ARC[ApiRequestContext]
     end
 
     subgraph persist [Persistence]
+        LBA[LineBasedRollingFileAppender]
         LB[logback-spring.xml]
-        LOG[(logs/log-sentinel-app.log)]
+        LOG[(logs/log-sentinel-app.log + .1..N)]
     end
 
     subgraph analysis [Deterministic analysis]
+        LDS[LogDirectoryService]
         P[LogFileParser]
+        TCR[TraceContextResolver]
         A[LogFileAnalyzer]
         R[LogAnalysisResult / ErrorBreakdown]
     end
@@ -52,28 +54,29 @@ flowchart TB
     end
 
     UI --> TC
-    UI --> TB
-    UI --> TD
     UI --> LA
     CURL --> api
 
     TC --> TS
-    TB --> TS
-    TD --> TS
+    TC --> SAL
     TS --> GEH
     GEH --> SAL
     TC --> ARC
-    TB --> ARC
+    RTF --> SAL
     SAL --> LB
-    LB --> LOG
+    LB --> LBA
+    LBA --> LOG
 
+    LA --> LDS
     LA --> A
     A --> P
-    P --> LOG
+    P --> TCR
+    TCR --> A
+    A --> LOG
     A --> R
     LA --> O
     O --> RP
-    RP --> ER
+    O --> ER
     RP --> CFG
     ER --> CFG
     CFG --> GEM
@@ -84,12 +87,12 @@ flowchart TB
 
 | Layer | Responsibility |
 |-------|----------------|
-| **Traffic APIs** | Trigger failures; set `customerId`, `orderId`, `amountInr` on the request |
-| **Logging** | Catch all API exceptions; write one structured `API_FAILURE` line per failure |
-| **Log file** | Rolling append-only source of truth for analysis |
-| **Analysis** | Parse file, group by customer/order, compute splits and rule flags |
-| **Agents** | Remediation runbook (technical) → executive brief with solutions by issue type |
-| **Config** | Thresholds, log path, LLM provider (Gemini / OpenAI) |
+| **Traffic APIs** | Trigger failures; bind `customerId`, `orderId`, `amountInr`; batch loops log multiple failures per request |
+| **Logging** | `/api/v1/` only → structured `API_FAILURE`; omit unknown ids from the line |
+| **Log file** | Append-only; roll on physical line count (`LOG_MAX_LINES_PER_FILE`) |
+| **Analysis** | Multi-file read, explicit customer counts, trace propagation, rule flags with `windows[]` |
+| **Agents** | Both consume `LogAnalysisResult.toAgentPrompt()`; executive agent does **not** receive remediation markdown |
+| **Config** | Thresholds, log path, rotation, `LLM_MAX_TOKENS`, LLM provider |
 
 ## Project layout — what each file does
 
@@ -98,28 +101,28 @@ flowchart TB
 | File | Purpose |
 |------|---------|
 | `README.md` | Quick start, APIs, env vars |
-| `APPLICATION_GUIDE.md` | Operations, config, troubleshooting |
-| `DEMO_SCRIPT.md` | Presenter steps for demos |
+| `APPLICATION_GUIDE.md` | Operations, semantics, troubleshooting |
+| `DEMO_SCRIPT.md` | Presenter steps |
 | `pom.xml` | Maven: Spring Boot 3.5, Java 21, Spring AI |
-| `Dockerfile` | Multi-stage build (Maven test + JRE image) |
-| `docker-compose.yml` | Port 8080, `.env`, `logs/` volume |
-| `.env.example` | Template for API keys and provider |
-| `.dockerignore` / `.gitignore` | Build and secret exclusions |
+| `Dockerfile` | Multi-stage: `mvn test` + JRE 21 image |
+| `docker-compose.yml` | Port 8080, `.env`, `logs/` volume, env defaults |
+| `.env.example` | `LOG_*`, `LLM_*`, provider keys |
 
 ### Documentation tree
 
-See [docs/README.md](../README.md). This file is under `docs/architecture/`. Full Java package map: [PACKAGE_STRUCTURE.md](PACKAGE_STRUCTURE.md).
+See [docs/README.md](../README.md). Java package map: [PACKAGE_STRUCTURE.md](PACKAGE_STRUCTURE.md).
 
 ### Source code (summary)
 
 | Package | Contents |
 |---------|----------|
 | `com.kgk.logsentinel` | `LogSentinelApplication` |
-| `...config` | LLM runtime configuration |
+| `...config` | `LlmRuntimeConfig` |
+| `...config.logging` | Line-based rolling appenders |
 | `...domain.analysis` | `LogEvent`, `ErrorBreakdown`, `LogAnalysisResult` |
-| `...service.analysis` | `LogFileParser`, `LogFileAnalyzer` |
-| `...service.traffic` | `TrafficSimulator` |
-| `...service.logging` | API failure logging + global handler |
+| `...service.analysis` | Parser, analyzer, directory listing, trace resolver |
+| `...service.simulator` | `TrafficSimulator` |
+| `...service.logging` | API failure logging, trace filter, global handler |
 | `...service.agent` | Dual-agent LLM pipeline |
 | `...web.controller` | REST endpoints |
 | `...web.dto` | Request/response records |
@@ -128,19 +131,20 @@ See [docs/README.md](../README.md). This file is under `docs/architecture/`. Ful
 
 | Path | Purpose |
 |------|---------|
-| `src/main/resources/application*.yml` | App + LLM profiles |
-| `src/main/resources/logback-spring.xml` | File + console logging |
-| `src/main/resources/static/index.html` | Demo UI |
+| `application.yml` | App, rotation, analysis thresholds, `LLM_MAX_TOKENS` |
+| `application-*.yml` | LLM provider profiles |
+| `logback-spring.xml` | Console + `LineBasedRollingFileAppender` |
+| `static/index.html` | Demo UI (traffic, log checkboxes, analyze) |
 
 ### Tests
 
-Mirror `service.analysis` and `service.agent` under `src/test/java/com/kgk/logsentinel/service/`.
+`src/test/java` — `service.analysis`, `service.agent`, `config.logging` (rotation policy, analyzer multi-file / triple-error / trace resolver).
 
 ## Deterministic rules (Java)
 
 - **Order flag:** `amountInr` > 150,000 on an `API_FAILURE` event.
-- **Customer flag:** More than **3** distinct stack signatures within **3 seconds** (not raw error count).
+- **Customer flag:** More than **3** distinct stack signatures within **3 seconds** among lines with explicit `customerId`. One `FlaggedCustomer` per id with `windows[]`.
 
 ## Related doc
 
-See [FLOW.md](FLOW.md) for request-level sequence diagrams and [PACKAGE_STRUCTURE.md](PACKAGE_STRUCTURE.md) for package layout.
+[FLOW.md](FLOW.md) — request sequences · [PACKAGE_STRUCTURE.md](PACKAGE_STRUCTURE.md) — package layout

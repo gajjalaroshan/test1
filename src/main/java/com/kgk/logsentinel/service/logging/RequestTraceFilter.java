@@ -37,11 +37,11 @@ public class RequestTraceFilter extends OncePerRequestFilter {
         }
     }
 
-    static String newTraceId() {
+    public static String newTraceId() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
-    static String newSpanId() {
+    public static String newSpanId() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 }

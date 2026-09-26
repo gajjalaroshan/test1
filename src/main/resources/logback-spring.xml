@@ -2,8 +2,10 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <springProperty name="LOG_FILE" source="logsentinel.log-file" defaultValue="logs/log-sentinel-app.log"/>
+    <springProperty name="LOG_MAX_LINES" source="logsentinel.log-rotation.max-lines-per-file" defaultValue="5000"/>
+    <springProperty name="LOG_MAX_INDEX" source="logsentinel.log-rotation.max-index" defaultValue="3"/>
     <property name="LOG_PATTERN"
-              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z', Asia/Kolkata} %-5level [%thread traceId=%X{traceId:-unknown} spanId=%X{spanId:-unknown}] %logger{36} - %msg%n"/>
+              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z', Asia/Kolkata} %-5level [%thread%replace(%X{traceId}){'^(.+)$',' traceId=$1'}%replace(%X{spanId}){'^(.+)$',' spanId=$1'}] %logger{36} - %msg%n"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -11,18 +13,18 @@
         </encoder>
     </appender>
 
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <appender name="FILE" class="com.kgk.logsentinel.config.logging.LineBasedRollingFileAppender">
         <file>${LOG_FILE}</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-            <fileNamePattern>${LOG_FILE}.%i.gz</fileNamePattern>
+            <fileNamePattern>${LOG_FILE}.%i</fileNamePattern>
             <minIndex>1</minIndex>
-            <maxIndex>3</maxIndex>
+            <maxIndex>${LOG_MAX_INDEX}</maxIndex>
         </rollingPolicy>
-        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
-            <maxFileSize>10MB</maxFileSize>
+        <triggeringPolicy class="com.kgk.logsentinel.config.logging.LineCountTriggeringPolicy">
+            <maxLinesPerFile>${LOG_MAX_LINES}</maxLinesPerFile>
         </triggeringPolicy>
     </appender>
 

@@ -1,3 +1,10 @@
 package com.kgk.logsentinel.web.dto;
 
-public record AnalyzeRequest(String logFilePath, Boolean useLlm) {}
+import java.util.List;
+
+public record AnalyzeRequest(String logFilePath, List<String> logFilePaths, Boolean useLlm) {
+
+    public boolean shouldUseLlm() {
+        return useLlm == null || useLlm;
+    }
+}

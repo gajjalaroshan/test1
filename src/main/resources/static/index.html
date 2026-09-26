@@ -15,6 +15,7 @@
         .flags h3 { margin: 0 0 0.5rem; font-size: 1rem; }
         h2 { margin-top: 0; }
         .muted { color: #555; font-size: 0.9rem; }
+        .log-files label { display: block; margin: 0.25rem 0; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -26,11 +27,13 @@
     <button id="demoBtn">AllExceptionTrigger</button>
     <button id="simulateTrafficBatchBtn">StandardExceptionsTrigger</button>
     <button id="simulateTrafficBatchVipBtn">AmountExceptionTrigger</button>
+    <button id="tripleErrorBtn">SingleTraceTripleError</button>
     <pre id="simOut">—</pre>
 </section>
 
 <section>
     <h2>2. Analyze</h2>
+    <div id="logFileList" class="log-files muted">Loading log files…</div>
     <button id="analyzeBtn">Analyze (Java + 2 agents)</button>
     <button id="analyzeJavaBtn">Analyze (Java only)</button>
     <div id="flagBox" class="flags" hidden>
@@ -52,6 +55,8 @@
     const agent1Out = document.getElementById('agent1Out');
     const agent2Out = document.getElementById('agent2Out');
     const analyzeJson = document.getElementById('analyzeJson');
+    const logFileList = document.getElementById('logFileList');
+    let logFiles = [];
 
     document.getElementById('demoBtn').onclick = () =>
         postJson('/api/v1/traffic/demo-flagging', null, simOut);
@@ -62,8 +67,37 @@
     }, simOut);
 
     document.getElementById('simulateTrafficBatchVipBtn').onclick = () => postJson('/api/v1/traffic/simulate-batch', {
-        scenario: ['high-value-silent'], customerId: 'cust-vip', orderId: 'ord-vip-1', amountInr: 200000
+        scenarios: ['high-value-silent'], customerId: 'cust-vip', orderId: 'ord-vip-1', amountInr: 200000
     }, simOut);
+
+    document.getElementById('tripleErrorBtn').onclick = () =>
+        postJson('/api/v1/traffic/simulate-single-trace-triple-error', null, simOut);
+
+    async function loadLogFiles() {
+        try {
+            const r = await fetch('/api/v1/logs/files');
+            logFiles = await r.json();
+            if (!Array.isArray(logFiles) || logFiles.length === 0) {
+                logFileList.textContent = 'No rolled log files found (active file may not exist yet). Analyze uses default path.';
+                return;
+            }
+            logFileList.innerHTML = '<strong>Log files</strong> (oldest first in list; all checked = multi-file analyze):';
+            logFiles.forEach((f, i) => {
+                const id = 'logf-' + i;
+                const label = document.createElement('label');
+                label.innerHTML = `<input type="checkbox" id="${id}" data-path="${f.path}" checked> ${f.name} (${f.size} bytes)`;
+                logFileList.appendChild(label);
+            });
+        } catch (e) {
+            logFileList.textContent = 'Could not load log files: ' + e;
+        }
+    }
+
+    function selectedLogPaths() {
+        const boxes = logFileList.querySelectorAll('input[type=checkbox]:checked');
+        if (boxes.length === 0) return null;
+        return Array.from(boxes).map(b => b.getAttribute('data-path'));
+    }
 
     async function postJson(url, body, outEl) {
         const r = await fetch(url, {
@@ -74,13 +108,19 @@
         const text = await r.text();
         try { outEl.textContent = JSON.stringify(JSON.parse(text), null, 2); }
         catch { outEl.textContent = text; }
+        loadLogFiles();
     }
 
     async function analyze(useLlm) {
+        const paths = selectedLogPaths();
+        const body = { useLlm };
+        if (paths && paths.length > 0) {
+            body.logFilePaths = paths;
+        }
         const r = await fetch('/api/v1/logs/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ useLlm })
+            body: JSON.stringify(body)
         });
         const data = await r.json();
         renderAnalyze(data);
@@ -127,6 +167,7 @@
 
     document.getElementById('analyzeBtn').onclick = () => analyze(true);
     document.getElementById('analyzeJavaBtn').onclick = () => analyze(false);
+    loadLogFiles();
 </script>
 </body>
 </html>

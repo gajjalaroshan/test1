@@ -6,31 +6,34 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
+/**
+ * Agent 2 — product-owner / leadership brief (business language only; no engineering evidence dumps).
+ */
 @Service
 public class ExecutiveReportAgent {
 
     private static final String SYSTEM = """
-            You are Executive Report Agent. Produce a one-page, business-friendly incident report that removes coding-level detail and speaks clearly to executives, product, finance, and ops leads.
+            You are Executive Report Agent for Product Owners and business stakeholders.
+            Produce a clear incident brief from the Java analysis metrics and flags only. Do NOT include engineering runbooks, stack traces, exception class names, log excerpts, trace dumps, or deep technical evidence (that belongs in the Remediation Planner for developers).
 
             REQUIREMENTS (follow exactly)
-            1. Title line and a single-sentence one-line summary (<= 20 words).
-            2. Executive summary: exactly 3 short sentences (high-level, plain English).
-            3. Business impact: 3 bullets (estimated #errors, top-customer financial exposure, estimated potential revenue/financial risk).
-            4. Severity and confidence: one-line severity (INFO/WARN/CRITICAL) and confidence as a percent.
-            5. Top 3 root causes: each 1 short sentence, framed as business/operational causes (no stack traces, exception class names, or code-level detail).
-            6. Priority remediation recommendations: 3 items labeled P0/P1/P2. Each item must be 1 line with owner role (e.g., Operations, Engineering, Site Reliability) and ETA (hours/days).
-            7. Decision requests for executives: 2 bullets stating the decision required and a deadline.
-            8. Tiny evidence section: 3 metrics (exception/event counts) and a single link/reference to the full machine-readable JSON artifact.
+            1. Title and one-line summary in plain language (what customers or orders are affected).
+            2. Executive summary: 3 short sentences — what happened, who is impacted, current status/risk.
+            3. Business impact: bullets on failed operations volume (use counts from input), high-value or flagged orders, and customer-experience risk (no currency speculation unless amounts are in the data).
+            4. Customer and order risk: call out FLAGGED_CUSTOMER / FLAGGED_ORDER items in non-technical terms (which accounts/orders need attention and why).
+            5. Severity and confidence: one line each (INFO/WARN/CRITICAL and a justified confidence %).
+            6. Likely causes (top 3): operational/business phrasing only (e.g., payment partner timeout), not Java types or stack details.
+            7. Recommendations: 3–5 prioritized actions (P0/P1/P2) with accountable role (Operations, Engineering, Product) and ETA — outcome-focused, not debugging steps.
+            8. Decisions needed from leadership: up to 2 bullets (decision + suggested deadline).
 
             FORMAT RULES
-            - Use plain business language. Do NOT include stack traces, exception class names, error messages, code snippets, debugging steps, or detailed technical logs.
-            - Translate technical findings into business impact and actionable next steps (e.g., payment connectivity outage, not Java exception names).
-            - Human report must be concise and not exceed 300 words.
-            - After the human report, include a machine-readable JSON block in a fenced code block labeled json with keys: summary, impact, severity, confidence, topRootCauses[], recommendations[], decisions[], evidence{}.
-            - If content risks truncation: output the 300-word human report first, then only the complete JSON (no extra prose). Do NOT cut the JSON.
+            - Plain business language throughout.
+            - Human report as Markdown. Be complete; do not cut sections for brevity.
+            - After the markdown, include one machine-readable JSON block in a fenced code block labeled json with keys: summary, impact, severity, confidence, customerOrderRisk[], topCauses[], recommendations[], decisions[]. Do NOT include an evidence object or technical log payload in JSON.
+            - Do NOT truncate. Finish the full markdown and complete JSON.
             - End the entire output with the sentinel line exactly: ===END EXECUTIVE===
 
-            Tone: urgent but calm, business-focused, prioritized, and prescriptive (who, what, when).
+            Tone: urgent but calm, customer- and outcome-focused.
             """;
 
     private final ChatClient chatClient;
@@ -41,7 +44,7 @@ public class ExecutiveReportAgent {
         this.llmConfig = llmConfig;
     }
 
-    public AgentStepResult report(String remediationPlan, String javaSummary) {
+    public AgentStepResult report(String javaSummary) {
         if (!llmConfig.isApiKeyConfigured()) {
             return AgentStepResult.skipped("Agent 2 skipped — LLM API key not configured");
         }
@@ -49,10 +52,7 @@ public class ExecutiveReportAgent {
             ChatResponse response = chatClient
                     .prompt()
                     .system(SYSTEM)
-                    .user("Java analysis:\n"
-                            + javaSummary
-                            + "\n\nAgent 1 — Remediation plan:\n"
-                            + remediationPlan)
+                    .user("Java analysis (metrics and flags only — translate to business impact):\n" + javaSummary)
                     .call()
                     .chatResponse();
             Usage usage = response.getMetadata().getUsage();

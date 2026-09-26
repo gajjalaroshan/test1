@@ -93,7 +93,14 @@ public class LogFileParser {
     }
 
     private static void enrichFromMessage(LogEvent.Builder builder, String message) {
-        match(CUSTOMER, message, builder::customerId);
+        Matcher customer = CUSTOMER.matcher(message);
+        if (customer.find()) {
+            String value = customer.group(1);
+            if (TraceContextResolver.isKnownId(value)) {
+                builder.customerId(value);
+                builder.explicitCustomerId(true);
+            }
+        }
         match(ORDER, message, builder::orderId);
         Matcher amount = AMOUNT.matcher(message);
         if (amount.find()) {

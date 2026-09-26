@@ -1,50 +1,54 @@
 # Log Sentinel — file-based log triage POC
 
-Spring Boot 3.5 + Spring AI **dual-agent** pipeline over a **rolling log file**. Business code does not call `log.error`; failures are recorded by a **global API exception handler** with structured `API_FAILURE` lines.
+Spring Boot 3.5 + Spring AI **dual-agent** pipeline over **line-rotated log files**. Business code does not call `log.error`; failures are recorded by a **global API exception handler** with structured `API_FAILURE` lines (only for paths under `/api/v1/`).
 
 ## Architecture
 
 | API | Purpose |
 |-----|---------|
-| `POST /api/v1/traffic/simulate` | Single failing request → exception → log file |
-| `POST /api/v1/traffic/simulate-batch` | Multiple scenarios for one customer (burst demo) |
-| `POST /api/v1/logs/analyze` | Parse log file, group by `customerId` / `orderId`, apply rules, optional **2 LLM agents** |
+| `POST /api/v1/traffic/simulate-batch` | Loop scenarios in one HTTP request → multiple `API_FAILURE` lines (same request `traceId` when caught in-controller) |
+| `POST /api/v1/traffic/demo-flagging` | Canned burst + high-value VIP order (shared trace via MDC) |
+| `POST /api/v1/traffic/simulate-single-trace-triple-error` | One request, three failures on one `traceId` (only first line has explicit `customerId`) |
+| `GET /api/v1/logs/files` | List active + rolled files (`path`, `name`, `size`, `lastModified`) |
+| `POST /api/v1/logs/analyze` | Parse one or more files (`logFilePath` or `logFilePaths`), rules, optional **2 LLM agents** |
+
+**Log rotation** — `LineBasedRollingFileAppender` + `LineCountTriggeringPolicy`: roll after **5000 physical newlines** in the active file (stack lines count). Rolled names: `log-sentinel-app.log.1` … `.N` (plain text). Env: `LOG_MAX_LINES_PER_FILE`, `LOG_MAX_ROLLED_FILES` → `logsentinel.log-rotation.*` in `application.yml`.
 
 **Java rules (deterministic)**
 
-- Flag **order** when `amountInr` **> 150,000** (1.5L INR) on an ERROR event.
-- Flag **customer** when **more than 3 distinct stack signatures** occur within **3 seconds** (not total error count — 28 repeats of the same 3 failure types still count as 3 signatures).
+- Flag **order** when `amountInr` **> 150,000** (1.5L INR) on an ERROR `API_FAILURE`.
+- Flag **customer** when **more than 3 distinct stack signatures** occur within **3 seconds** (strict `> 3` → needs **4** signatures). `flaggedCustomers` has **one entry per `customerId`** with `windows[]` (`distinctStacksInWindow`, `windowStart`, `windowEnd`).
+- **Customer totals** (`errorBreakdown.byCustomerId`, burst rules) count only lines with **explicit** `customerId=` in the log message. **`TraceContextResolver`** still copies `customerId`/`orderId` onto co-traced lines for grouping and trace slices (`byCustomer.*.byTraceId`).
 
-**Agents** (Java owns all counts/splits; agents own action)
+**Agents** (Java owns counts/splits; agents own narrative)
 
-1. **Remediation Planner** — on-call runbook: solutions per exception type, playbooks for flagged customer/order ids.
-2. **Executive Report** — severity, impact summary, and **Solutions by issue type** for leadership + team leads.
+1. **Remediation Planner** — dev lead / on-call runbook with cited evidence from `LogAnalysisResult.toAgentPrompt()`.
+2. **Executive Report** — product-owner brief from the **same Java summary only** (no Agent 1 output, no technical evidence). `DualAgentOrchestrator` runs both in sequence but does not pass remediation markdown to the executive agent.
 
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine + Compose v2)
-- Optional: a local Ollama model, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` for LLM steps (`useLlm: true`)
+- Optional: local Ollama, `GEMINI_API_KEY`, or `OPENAI_API_KEY` in `.env` for LLM steps (`useLlm: true`)
 
-Builds and tests run in Docker (Java 21). Host JDK can be older.
+Build and test in Docker (**Java 21**, `maven:3.9.9-eclipse-temurin-21` → `eclipse-temurin:21-jre`). Host JDK can be older.
 
 ## Quick start
 
 ```powershell
 copy .env.example .env
-# edit .env — set GEMINI_API_KEY or OPENAI_API_KEY if you want agents
+# edit .env — API keys, LOG_*, LLM_* (see .env.example)
 docker compose up --build -d
 ```
 
-Open [http://localhost:8080](http://localhost:8080) for buttons, or use curl:
+Open [http://localhost:8080](http://localhost:8080) — traffic buttons, **log-file checkboxes** (multi-file analyze), agent report panels.
 
 ```powershell
-# Recommended: one call that triggers BOTH rules (customer burst + high-value order)
 curl -s -X POST http://localhost:8080/api/v1/traffic/demo-flagging
 
-# Analyze — rule flags at top level; agent markdown in agents.*Markdown (multi-line strings)
+curl -s http://localhost:8080/api/v1/logs/files
+
 curl -s -X POST http://localhost:8080/api/v1/logs/analyze -H "Content-Type: application/json" -d "{\"useLlm\":true}"
 
-# Java-only: see ruleFlags.flaggedCustomerIds and ruleFlags.flaggedOrderIds
 curl -s -X POST http://localhost:8080/api/v1/logs/analyze -H "Content-Type: application/json" -d "{\"useLlm\":false}"
 ```
 
@@ -60,22 +64,27 @@ curl -s -X POST http://localhost:8080/api/v1/logs/analyze -H "Content-Type: appl
   | jq -r '.agents.executiveReportMarkdown'
 ```
 
-On Windows without jq, use http://localhost:8080 — the UI renders agent reports with real line breaks (not escaped inside one JSON line).
-
-Default log path: `logs/log-sentinel-app.log` (inside the container working directory).
+Default log path: `logs/log-sentinel-app.log` (container: `/app/logs` via compose volume).
 
 ## Configuration
 
 | Variable | Default |
 |----------|---------|
 | `LOG_FILE_PATH` | `logs/log-sentinel-app.log` |
+| `LOG_MAX_LINES_PER_FILE` | `5000` |
+| `LOG_MAX_ROLLED_FILES` | `3` |
 | `HIGH_VALUE_AMOUNT_INR` | `150000` |
 | `CUSTOMER_BURST_WINDOW_MS` | `3000` |
 | `CUSTOMER_DISTINCT_STACK_THRESHOLD` | `3` |
 | `LLM_PROVIDER` | `ollama` |
+| `LLM_MAX_TOKENS` | `8192` |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | see `.env.example` |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | see `.env.example` |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | see `.env.example` |
+| `MAX_TOOL_CALLS` / `RATE_LIMIT_RETRIES` | see `.env.example` |
 
-For local Ollama, start Ollama, pull the configured model (for example, `ollama pull gemma:2b`), and keep `LLM_PROVIDER=ollama`. When running through Docker Compose, the default URL is `http://host.docker.internal:11434`; set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` in `.env` when needed.
+Full template: [`.env.example`](.env.example).
 
-See [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for presenter flow.
+See [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for operations and presenter flow.
 
 **Docs:** [docs/README.md](docs/README.md) — [architecture](docs/architecture/ARCHITECTURE.md) · [flows](docs/architecture/FLOW.md) · [packages](docs/architecture/PACKAGE_STRUCTURE.md)
