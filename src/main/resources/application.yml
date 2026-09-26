@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: log-sentinel
+  profiles:
+    active: ${LLM_PROVIDER:gemini}
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.2
+          max-tokens: 900
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          options:
+            model: ${GEMINI_MODEL:gemini-2.5-flash}
+            temperature: 0.2
+            max-tokens: 900
+
+logsentinel:
+  llm:
+    provider: ${LLM_PROVIDER:gemini}
+  log-file: ${LOG_FILE_PATH:logs/log-sentinel-app.log}
+  analysis:
+    high-value-amount-inr: ${HIGH_VALUE_AMOUNT_INR:150000}
+    customer-burst-window-ms: ${CUSTOMER_BURST_WINDOW_MS:3000}
+    customer-distinct-stack-threshold: ${CUSTOMER_DISTINCT_STACK_THRESHOLD:3}
+  agent:
+    max-tool-calls: 0
+    rate-limit-retries: ${RATE_LIMIT_RETRIES:2}
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.kgk.logsentinel: INFO

@@ -1,0 +1,19 @@
+services:
+  log-sentinel:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      # Defaults when not set in .env (do not inject empty API keys — Spring treats "" as set)
+      LOG_FILE_PATH: ${LOG_FILE_PATH:-logs/log-sentinel-app.log}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      MAX_TOOL_CALLS: ${MAX_TOOL_CALLS:-1}
+      RATE_LIMIT_RETRIES: ${RATE_LIMIT_RETRIES:-3}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_INCLUDE_THOUGHTS: ${GEMINI_INCLUDE_THOUGHTS:-false}

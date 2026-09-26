@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Log Sentinel</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+        section { margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 0.5rem 1rem; margin: 0 0.5rem 0.5rem 0; }
+        pre, .report {
+            background: #f4f4f4; padding: 0.75rem; overflow: auto; font-size: 0.85rem;
+            white-space: pre-wrap; word-break: break-word; line-height: 1.45;
+        }
+        .flags { background: #fff8e6; border: 1px solid #e6c200; border-radius: 6px; padding: 0.75rem; margin: 0.75rem 0; }
+        .flags h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+        h2 { margin-top: 0; }
+        .muted { color: #555; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<h1>Log Sentinel</h1>
+<p class="muted">Run the flagging demo, then analyze. Agent markdown is shown as readable text (not escaped JSON).</p>
+
+<section>
+    <h2>1. Add logs to log file</h2>
+    <button id="demoBtn">AllExceptionTrigger</button>
+    <button id="simulateTrafficBatchBtn">StandardExceptionsTrigger</button>
+    <button id="simulateTrafficBatchVipBtn">AmountExceptionTrigger</button>
+    <pre id="simOut">—</pre>
+</section>
+
+<section>
+    <h2>2. Analyze</h2>
+    <button id="analyzeBtn">Analyze (Java + 2 agents)</button>
+    <button id="analyzeJavaBtn">Analyze (Java only)</button>
+    <div id="flagBox" class="flags" hidden>
+        <h3>Java rule flags</h3>
+        <pre id="flagOut"></pre>
+    </div>
+    <h3>Agent 1 — Remediation planner (runbook)</h3>
+    <div id="agent1Out" class="report">—</div>
+    <h3>Agent 2 — Executive report</h3>
+    <div id="agent2Out" class="report">—</div>
+    <h3>Full JSON</h3>
+    <pre id="analyzeJson">—</pre>
+</section>
+
+<script>
+    const simOut = document.getElementById('simOut');
+    const flagBox = document.getElementById('flagBox');
+    const flagOut = document.getElementById('flagOut');
+    const agent1Out = document.getElementById('agent1Out');
+    const agent2Out = document.getElementById('agent2Out');
+    const analyzeJson = document.getElementById('analyzeJson');
+
+    document.getElementById('demoBtn').onclick = () =>
+        postJson('/api/v1/traffic/demo-flagging', null, simOut);
+
+    document.getElementById('simulateTrafficBatchBtn').onclick = () => postJson('/api/v1/traffic/simulate-batch', {
+        customerId: 'cust-burst-1', orderId: 'ord-900', amountInr: 50000,
+        scenarios: ['silent-null-pointer', 'illegal-state', 'timeout', 'high-value-silent']
+    }, simOut);
+
+    document.getElementById('simulateTrafficBatchVipBtn').onclick = () => postJson('/api/v1/traffic/simulate-batch', {
+        scenario: ['high-value-silent'], customerId: 'cust-vip', orderId: 'ord-vip-1', amountInr: 200000
+    }, simOut);
+
+    async function postJson(url, body, outEl) {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: body ? { 'Content-Type': 'application/json' } : {},
+            body: body ? JSON.stringify(body) : undefined
+        });
+        const text = await r.text();
+        try { outEl.textContent = JSON.stringify(JSON.parse(text), null, 2); }
+        catch { outEl.textContent = text; }
+    }
+
+    async function analyze(useLlm) {
+        const r = await fetch('/api/v1/logs/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ useLlm })
+        });
+        const data = await r.json();
+        renderAnalyze(data);
+    }
+
+    function renderAnalyze(data) {
+        if (data.ruleFlags || data.javaAnalysis?.errorBreakdown) {
+            flagBox.hidden = false;
+            const rf = data.ruleFlags;
+            const bd = data.javaAnalysis?.errorBreakdown;
+            let text = '';
+            if (bd) {
+                text += 'Total API_FAILURE errors: ' + bd.totalApiFailureErrors + '\n';
+                text += 'By exception type: ' + JSON.stringify(bd.errorsByExceptionType) + '\n\n';
+            }
+            if (rf) {
+                text += 'flaggedCustomerIds: ' + JSON.stringify(rf.flaggedCustomerIds) + '\n';
+                text += 'flaggedOrderIds: ' + JSON.stringify(rf.flaggedOrderIds) + '\n\n';
+                text += JSON.stringify({ ruleFlags: rf, errorBreakdown: bd }, null, 2);
+            } else {
+                text += JSON.stringify(bd, null, 2);
+            }
+            flagOut.textContent = text;
+        } else {
+            flagBox.hidden = true;
+        }
+
+        const agents = data.agents;
+        agent1Out.textContent = agents?.remediationPlanMarkdown
+            || agents?.remediationPlannerError || (data.error ? 'Error: ' + data.error : '— (Java-only or no LLM)');
+        agent2Out.textContent = agents?.executiveReportMarkdown
+            || agents?.executiveReportError || '—';
+
+        const jsonForDisplay = { ...data };
+        if (jsonForDisplay.agents) {
+            jsonForDisplay.agents = {
+                ...jsonForDisplay.agents,
+                remediationPlanMarkdown: '(see section above)',
+                executiveReportMarkdown: '(see section above)'
+            };
+        }
+        analyzeJson.textContent = JSON.stringify(jsonForDisplay, null, 2);
+    }
+
+    document.getElementById('analyzeBtn').onclick = () => analyze(true);
+    document.getElementById('analyzeJavaBtn').onclick = () => analyze(false);
+</script>
+</body>
+</html>
