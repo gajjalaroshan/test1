@@ -64,7 +64,7 @@ sequenceDiagram
         LA->>O: run(javaResult)
         O->>RP: plan(javaResult)
         RP-->>O: remediation markdown
-        O->>ER: report(javaResult.toAgentPrompt())
+        O->>ER: report(javaResult.toExecutivePrompt())
         ER-->>O: executive markdown
         O-->>LA: pipeline result
         LA-->>C: javaAnalysis, ruleFlags, agents

@@ -20,4 +20,13 @@ class AgentMarkdownFormatterTest {
         String raw = "## Flagged customers\n- customerId: cust-burst-1\n";
         assertEquals("## Flagged customers\n- customerId: cust-burst-1\n", AgentMarkdownFormatter.normalize(raw));
     }
+
+    @Test
+    void stripsJsonFenceBeforeSentinel() {
+        String raw = "## Summary\nDone.\n```json\n{\"severity\":\"CRITICAL\"}\n```\n===END EXECUTIVE===\nextra";
+        String out = AgentMarkdownFormatter.normalize(raw);
+        assertTrue(out.contains("===END EXECUTIVE==="));
+        assertTrue(!out.contains("```json"));
+        assertTrue(!out.contains("extra"));
+    }
 }

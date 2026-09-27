@@ -17,9 +17,8 @@ public class DualAgentOrchestrator {
     }
 
     public DualAgentPipelineResult run(LogAnalysisResult javaResult) {
-        String javaSummary = javaResult.toAgentPrompt();
         AgentStepResult agent1 = remediationPlannerAgent.plan(javaResult);
-        AgentStepResult agent2 = executiveReportAgent.report(javaSummary);
+        AgentStepResult agent2 = executiveReportAgent.report(javaResult.toExecutivePrompt());
         return new DualAgentPipelineResult(javaResult, agent1, agent2);
     }
 

@@ -16,21 +16,28 @@ public class RemediationPlannerAgent {
 
     private static final String SYSTEM = """
             You are Remediation Planner Agent for an engineering lead / on-call developer audience.
-            Turn the supplied Java log analysis into a complete technical runbook. Do NOT write product-owner or executive briefs (no business-financial narrative, no "decisions for leadership", no non-technical impact framing).
+            Turn the supplied Java log analysis into a complete technical runbook.
 
-            REQUIREMENTS (follow exactly)
-            1. Incident header: one-line title + severity (INFO/WARN/CRITICAL) with a technical rationale (what broke, which services/paths).
-            2. Evidence (required, detailed): reproduce authoritative counts from the input exactly; cite customerId, orderId, traceId, exception types, stack-signature counts, and FLAGGED_* lines. Include short quoted error fields (exception class, message, path) from the payload when present. This section is for engineers — be specific and complete.
-            3. For each exception type in the top 6 by count: symptoms, likely technical causes, immediate mitigation steps, durable fix, how to verify recovery, and affected customers/orders/traces.
-            4. Flagged entities playbook: for each FLAGGED_CUSTOMER and FLAGGED_ORDER, concrete investigation and remediation steps (what to check in logs/traces, rollback/mitigation).
-            5. Prioritized engineering checklist (at least 5 items) with owner role (Engineering/SRE/Platform) and ETA (P0/P1/P2).
-            6. Gaps/unknowns: bullets for missing telemetry or ambiguous signals.
+            HARD RULES (violations are unacceptable)
+            - Use ONLY customerId, orderId, traceId, counts, exception type labels, and flags from the payload. Never invent or round numbers.
+            - Reproduce ERROR VOLUME & SPLITS exactly (totals and byType maps as given).
+            - traceId: cite only ids that appear under byTraceId for that customer; at most 3 examples per customer, then state how many trace keys are listed in the payload. Never invent trace ids (e.g. do not write "e.g. 02b1ae...").
+            - Do NOT fabricate log message quotes ("Cannot invoke...") — the payload has type counts, not message text unless explicitly provided.
+            - Do NOT recommend specific libraries or products (Resilience4j, Bucket4j, JSR-303) unless named in the payload; describe the capability instead (circuit breaker, rate limit, input validation).
+            - Cite each FLAGGED_* line once in section 4 — do not duplicate the RULE FLAGS block.
+            - No leadership decisions, no PO executive summary.
 
-            FORMAT RULES
-            - Human report as Markdown. Be thorough; do not omit sections to save length.
-            - After the markdown, output one machine-readable JSON object in a fenced code block labeled json (keys: severity, evidence, issuesByType[], flaggedPlaybooks[], checklist[], gaps[]). JSON must be complete — never partial.
-            - Do NOT truncate or abbreviate the report. If you approach output limits, finish the JSON block completely, then end.
-            - Terminate the entire output with this sentinel line exactly: ===END REMEDIATION===
+            REQUIREMENTS (## headings in this order)
+            1. Incident header: title + severity + technical rationale from exception mix and volumes.
+            2. Evidence: totals; global and per-customer/order byType from payload; stackSignatureCounts; FLAGGED_* summary (one line each, not full duplicate block).
+            3. Exception analysis: up to 6 types from global split — use simple type labels from payload (e.g. NullPointerException); symptoms tied to counts/customers/orders; mitigations grounded in type name, not invented stack quotes.
+            4. Flagged entities playbook: per FLAGGED_CUSTOMER window and FLAGGED_ORDER.
+            5. Engineering checklist: ≥5 items, owner + P0/P1/P2.
+            6. Gaps/unknowns: missing path/message fields in payload.
+
+            FORMAT
+            - Markdown only. No ``` fences. No JSON/YAML. No content after the sentinel.
+            - Last line exactly: ===END REMEDIATION===
             """;
 
     private final ChatClient chatClient;
@@ -49,13 +56,13 @@ public class RemediationPlannerAgent {
             ChatResponse response = chatClient
                     .prompt()
                     .system(SYSTEM)
-                    .user("Java log analysis (authoritative — cite exactly in Evidence):\n" + javaResult.toAgentPrompt())
+                    .user("Java remediation payload (authoritative — cite exactly):\n" + javaResult.toRemediationPrompt())
                     .call()
                     .chatResponse();
             Usage usage = response.getMetadata().getUsage();
             return AgentStepResult.success(
                     "remediation-planner",
-                    response.getResult().getOutput().getText(),
+                    AgentMarkdownFormatter.normalize(response.getResult().getOutput().getText()),
                     tokens(usage));
         } catch (Exception e) {
             return AgentStepResult.failed("Agent 1 failed: " + e.getMessage());

@@ -75,7 +75,7 @@ Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appender
 | `AgentReports` | Remediation + executive markdown |
 | `LogEvent` | Parsed error + stack signature; `explicitCustomerId` |
 | `ErrorBreakdown` | Totals and splits (customer splits = explicit lines only) |
-| `LogAnalysisResult` | Full Java analysis + `toAgentPrompt()`; `FlaggedCustomer.windows[]` |
+| `LogAnalysisResult` | `toRemediationPrompt()` / `toExecutivePrompt()` (+ `toAgentPrompt()` → remediation); `FlaggedCustomer.windows[]` |
 | `AgentStepResult` | Per-agent output metadata |
 | `RequestTraceFilter` | `@Component` filter — MDC `traceId` / `spanId` per HTTP request |
 | `TraceMdc` | MDC key names and request attribute keys |

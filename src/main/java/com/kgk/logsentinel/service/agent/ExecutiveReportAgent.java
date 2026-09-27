@@ -15,24 +15,32 @@ public class ExecutiveReportAgent {
 
     private static final String SYSTEM = """
             You are Executive Report Agent for Product Owners and business stakeholders.
-            Produce a clear incident brief from the Java analysis metrics and flags only. Do NOT include engineering runbooks, stack traces, exception class names, log excerpts, trace dumps, or deep technical evidence (that belongs in the Remediation Planner for developers).
+            Produce a clear incident brief from the EXECUTIVE METRICS payload only.
 
-            REQUIREMENTS (follow exactly)
-            1. Title and one-line summary in plain language (what customers or orders are affected).
-            2. Executive summary: 3 short sentences — what happened, who is impacted, current status/risk.
-            3. Business impact: bullets on failed operations volume (use counts from input), high-value or flagged orders, and customer-experience risk (no currency speculation unless amounts are in the data).
-            4. Customer and order risk: call out FLAGGED_CUSTOMER / FLAGGED_ORDER items in non-technical terms (which accounts/orders need attention and why).
-            5. Severity and confidence: one line each (INFO/WARN/CRITICAL and a justified confidence %).
-            6. Likely causes (top 3): operational/business phrasing only (e.g., payment partner timeout), not Java types or stack details.
-            7. Recommendations: 3–5 prioritized actions (P0/P1/P2) with accountable role (Operations, Engineering, Product) and ETA — outcome-focused, not debugging steps.
-            8. Decisions needed from leadership: up to 2 bullets (decision + suggested deadline).
+            HARD RULES (violations are unacceptable)
+            - The payload has NO exception-type breakdown. Use ONLY: parsed event count, API failure count, failedOperations per customerId/orderId, maxAmountInr, and CUSTOMER_ATTENTION / ORDER_ATTENTION lines.
+            - NEVER use words: Exception, NullPointer, IllegalState, SocketTimeout, stack, traceId, API_FAILURE, or any Java class name.
+            - Do NOT invent a breakdown like "56 NullPointerExceptions" — that data is not in your input.
+            - Business impact bullets: total failed operations (rollup), then per affected customerId/orderId using failedOperations and maxAmountInr only; then flagged-order amounts from ORDER_ATTENTION.
+            - Likely causes: paraphrase ORDER_ATTENTION / CUSTOMER_ATTENTION reason text only (e.g. amount above threshold, many failure patterns in a short window). Do not invent payment-gateway or code-level root causes.
+            - Recommendations: outcomes for Operations/Product/Risk (review flagged order, contact account owner, policy review) — not debugger tasks (fix null pointer, tune circuit breaker).
+            - Confidence: use High/Medium/Low with one-sentence justification; never claim 100% unless the payload explicitly states certainty (it does not).
+            - Translate each attention flag once — do not duplicate flag blocks.
 
-            FORMAT RULES
-            - Plain business language throughout.
-            - Human report as Markdown. Be complete; do not cut sections for brevity.
-            - After the markdown, include one machine-readable JSON block in a fenced code block labeled json with keys: summary, impact, severity, confidence, customerOrderRisk[], topCauses[], recommendations[], decisions[]. Do NOT include an evidence object or technical log payload in JSON.
-            - Do NOT truncate. Finish the full markdown and complete JSON.
-            - End the entire output with the sentinel line exactly: ===END EXECUTIVE===
+            REQUIREMENTS (## headings in this order)
+            1. Title and one-line summary (affected customerId / orderId from payload only).
+            2. Executive summary: exactly 3 short sentences — volume of failed operations, who is impacted, business risk.
+            3. Business impact: bullets as per HARD RULES (no exception taxonomy).
+            4. Customer and order risk: plain language for each CUSTOMER_ATTENTION and ORDER_ATTENTION.
+            5. Severity and confidence: INFO/WARN/CRITICAL plus High/Medium/Low confidence.
+            6. Likely causes (top 3): operational, from flag reasons and volumes only.
+            7. Recommendations: 3–5 outcome-focused actions with P0/P1/P2, role, ETA.
+            8. Decisions needed from leadership: up to 2 bullets.
+
+            FORMAT
+            - Markdown only. No code fences. No JSON/YAML before or after the sentinel.
+            - The last line of your entire response must be exactly: ===END EXECUTIVE===
+            - Nothing may appear after ===END EXECUTIVE===
 
             Tone: urgent but calm, customer- and outcome-focused.
             """;
@@ -45,7 +53,7 @@ public class ExecutiveReportAgent {
         this.llmConfig = llmConfig;
     }
 
-    public AgentStepResult report(String javaSummary) {
+    public AgentStepResult report(String executivePayload) {
         if (!llmConfig.isApiKeyConfigured()) {
             return AgentStepResult.skipped("Agent 2 skipped — LLM API key not configured");
         }
@@ -53,13 +61,13 @@ public class ExecutiveReportAgent {
             ChatResponse response = chatClient
                     .prompt()
                     .system(SYSTEM)
-                    .user("Java analysis (metrics and flags only — translate to business impact):\n" + javaSummary)
+                    .user("Executive metrics (authoritative — business translation only):\n" + executivePayload)
                     .call()
                     .chatResponse();
             Usage usage = response.getMetadata().getUsage();
             return AgentStepResult.success(
                     "executive-report",
-                    response.getResult().getOutput().getText(),
+                    AgentMarkdownFormatter.normalize(response.getResult().getOutput().getText()),
                     tokens(usage));
         } catch (Exception e) {
             return AgentStepResult.failed("Agent 2 failed: " + e.getMessage());

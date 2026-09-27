@@ -22,8 +22,8 @@ Spring Boot 3.5 + Spring AI **dual-agent** pipeline over **line-rotated log file
 
 **Agents** (Java owns counts/splits; agents own narrative)
 
-1. **Remediation Planner** — dev lead / on-call runbook with cited evidence from `LogAnalysisResult.toAgentPrompt()`.
-2. **Executive Report** — product-owner brief from the **same Java summary only** (no Agent 1 output, no technical evidence). `DualAgentOrchestrator` runs both in sequence but does not pass remediation markdown to the executive agent.
+1. **Remediation Planner** — dev lead / on-call runbook from `LogAnalysisResult.toRemediationPrompt()` (exceptions, traces, stacks, flags).
+2. **Executive Report** — product-owner brief from `LogAnalysisResult.toExecutivePrompt()` (failure volumes, flagged customers/orders, amounts — no traces/stacks/exception types). Does not receive Agent 1 output.
 
 ## Prerequisites
 

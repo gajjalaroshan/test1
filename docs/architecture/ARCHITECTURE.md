@@ -91,7 +91,7 @@ flowchart TB
 | **Logging** | `/api/v1/` only → structured `API_FAILURE`; omit unknown ids from the line |
 | **Log file** | Append-only; roll on physical line count (`LOG_MAX_LINES_PER_FILE`) |
 | **Analysis** | Multi-file read, explicit customer counts, trace propagation, rule flags with `windows[]` |
-| **Agents** | Both consume `LogAnalysisResult.toAgentPrompt()`; executive agent does **not** receive remediation markdown |
+| **Agents** | Remediation uses `toRemediationPrompt()`; executive uses `toExecutivePrompt()` (business-safe metrics only); executive does **not** receive remediation markdown |
 | **Config** | Thresholds, log path, rotation, `LLM_MAX_TOKENS`, LLM provider |
 
 ## Project layout — what each file does
