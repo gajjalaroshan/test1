@@ -117,15 +117,10 @@ See [docs/README.md](../README.md). Java package map: [PACKAGE_STRUCTURE.md](PAC
 | Package | Contents |
 |---------|----------|
 | `com.kgk.logsentinel` | `LogSentinelApplication` |
-| `...config` | `LlmRuntimeConfig` |
-| `...config.logging` | Line-based rolling appenders |
-| `...domain.analysis` | `LogEvent`, `ErrorBreakdown`, `LogAnalysisResult` |
-| `...service.analysis` | Parser, analyzer, directory listing, trace resolver |
-| `...service.simulator` | `TrafficSimulator` |
-| `...service.logging` | API failure logging, trace filter, global handler |
-| `...service.agent` | Dual-agent LLM pipeline |
-| `...web.controller` | REST endpoints |
-| `...web.dto` | Request/response records |
+| `...config` | `LlmRuntimeConfig`, line-based rolling appenders |
+| `...controller` | REST endpoints |
+| `...dto` | Request/response records |
+| `...service` | Analysis models, parser/analyzer, agents, API logging, `TrafficSimulator` |
 
 ### Resources
 
@@ -138,7 +133,7 @@ See [docs/README.md](../README.md). Java package map: [PACKAGE_STRUCTURE.md](PAC
 
 ### Tests
 
-`src/test/java` — `service.analysis`, `service.agent`, `config.logging` (rotation policy, analyzer multi-file / triple-error / trace resolver).
+`src/test/java` — flat `config` and `service` packages (rotation policy, analyzer multi-file / triple-error / trace resolver, agents).
 
 ## Deterministic rules (Java)
 

@@ -2,18 +2,17 @@
 
 ## Components
 
-Packages follow **web → service → domain** (see [docs/architecture/PACKAGE_STRUCTURE.md](docs/architecture/PACKAGE_STRUCTURE.md)).
+Packages are flat under `com.kgk.logsentinel` (see [docs/architecture/PACKAGE_STRUCTURE.md](docs/architecture/PACKAGE_STRUCTURE.md)).
 
 | Area | Classes |
 |------|---------|
-| **web.controller** | `TrafficController`, `LogAnalysisController` |
-| **web.dto** | `AnalyzeRequest`, `AnalyzeResponse`, `TrafficRequest`, `RuleFlagSummary`, `AgentReports`, `LogFileEntry` |
+| **controller** | `TrafficController`, `LogAnalysisController` |
+| **dto** | `AnalyzeRequest`, `AnalyzeResponse`, `TrafficRequest`, `RuleFlagSummary`, `AgentReports`, `LogFileEntry`, `LogEvent`, `ErrorBreakdown`, `LogAnalysisResult`, `AgentStepResult`, `RequestTraceFilter`, `TraceMdc`, `ApiRequestContext` |
+| **service.agent** | `DualAgentOrchestrator`, `RemediationPlannerAgent`, `ExecutiveReportAgent`, `AgentMarkdownFormatter`, `GeminiRateLimitRetry` |
+| **service.logs** | `LogFileParser`, `LogFileAnalyzer`, `LogDirectoryService`, `StructuredApiErrorLogger` |
 | **service.simulator** | `TrafficSimulator` |
-| **service.logging** | `GlobalApiExceptionHandler`, `StructuredApiErrorLogger`, `RequestTraceFilter`, `TraceMdc`, `ApiRequestContext` |
-| **service.analysis** | `LogFileParser`, `LogFileAnalyzer`, `LogDirectoryService`, `TraceContextResolver` |
-| **service.agent** | `DualAgentOrchestrator`, `RemediationPlannerAgent`, `ExecutiveReportAgent` |
-| **config.logging** | `LineBasedRollingFileAppender`, `LineCountTriggeringPolicy` |
-| **domain.analysis** | `LogEvent`, `ErrorBreakdown`, `LogAnalysisResult` |
+| **service.mdc** | `TraceContextResolver` |
+| **config** | `LlmRuntimeConfig`, `LineBasedRollingFileAppender`, `LineCountTriggeringPolicy`, `GlobalApiExceptionHandler` |
 
 | Layer | Responsibility |
 |-------|----------------|

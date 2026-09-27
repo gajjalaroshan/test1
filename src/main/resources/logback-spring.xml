@@ -13,7 +13,7 @@
         </encoder>
     </appender>
 
-    <appender name="FILE" class="com.kgk.logsentinel.config.logging.LineBasedRollingFileAppender">
+    <appender name="FILE" class="com.kgk.logsentinel.config.LineBasedRollingFileAppender">
         <file>${LOG_FILE}</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
@@ -23,7 +23,7 @@
             <minIndex>1</minIndex>
             <maxIndex>${LOG_MAX_INDEX}</maxIndex>
         </rollingPolicy>
-        <triggeringPolicy class="com.kgk.logsentinel.config.logging.LineCountTriggeringPolicy">
+        <triggeringPolicy class="com.kgk.logsentinel.config.LineCountTriggeringPolicy">
             <maxLinesPerFile>${LOG_MAX_LINES}</maxLinesPerFile>
         </triggeringPolicy>
     </appender>

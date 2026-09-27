@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Simulates API failures with <strong>no</strong> explicit log statements — failures are recorded by
- * {@link com.kgk.logsentinel.service.logging.GlobalApiExceptionHandler} / {@link com.kgk.logsentinel.service.logging.StructuredApiErrorLogger}.
+ * {@link com.kgk.logsentinel.config.GlobalApiExceptionHandler} / {@link com.kgk.logsentinel.service.logs.StructuredApiErrorLogger}.
  */
 @Service
 public class TrafficSimulator {

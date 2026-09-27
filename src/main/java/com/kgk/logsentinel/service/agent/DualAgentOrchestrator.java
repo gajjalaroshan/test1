@@ -1,6 +1,7 @@
 package com.kgk.logsentinel.service.agent;
 
-import com.kgk.logsentinel.domain.analysis.LogAnalysisResult;
+import com.kgk.logsentinel.dto.AgentStepResult;
+import com.kgk.logsentinel.dto.LogAnalysisResult;
 import org.springframework.stereotype.Service;
 
 @Service

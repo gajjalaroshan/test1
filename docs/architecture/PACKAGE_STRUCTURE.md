@@ -1,50 +1,48 @@
 # Package structure
 
-Layered layout for Log Sentinel (Spring Boot). Dependency direction: **web → service → domain**; `config` is cross-cutting.
+Flat layout under `com.kgk.logsentinel` for **`config`**, **`controller`**, and **`dto`**. Business logic lives under **`service`** in four subpackages.
 
 ```text
 com.kgk.logsentinel
-├── LogSentinelApplication.java     # Bootstrap
-├── config/                         # Framework & app configuration
-│   └── logging/                    # Line-based log rotation
-├── domain/                         # Pure models (no Spring web dependencies)
-│   └── analysis/
-├── service/                        # Business logic & integrations
-│   ├── analysis/
-│   ├── simulator/
-│   ├── logging/
-│   └── agent/
-└── web/                            # HTTP API surface
-    ├── controller/
-    └── dto/
+├── LogSentinelApplication.java     # Bootstrap (@SpringBootApplication — scans subpackages)
+├── config/                         # @Configuration, Logback appenders, @RestControllerAdvice
+├── controller/                     # REST controllers
+├── dto/                            # HTTP records, trace/MDC, analysis model types, servlet filter
+└── service/
+    ├── agent/                      # LLM agents, orchestrator, markdown, rate-limit retry
+    ├── logs/                       # Log parse/analyze/directory, structured API error logging
+    ├── simulator/                  # Traffic failure simulation
+    └── mdc/                        # Trace context propagation for analysis
 ```
 
 ```mermaid
 flowchart TB
-    subgraph web [web]
-        C[controller]
-        D[dto]
+    subgraph controller [controller]
+        C[TrafficController LogAnalysisController]
+    end
+    subgraph dto [dto]
+        D[AnalyzeRequest AnalyzeResponse ...]
+        T[TraceMdc RequestTraceFilter ApiRequestContext]
+        M[LogEvent LogAnalysisResult ErrorBreakdown AgentStepResult]
     end
     subgraph service [service]
-        SA[analysis]
-        SS[simulator]
-        SL[logging]
-        AG[agent]
-    end
-    subgraph domain [domain]
-        DM[analysis models]
+        AG[agent: DualAgentOrchestrator agents ...]
+        LG[logs: LogFileAnalyzer parser directory StructuredApiErrorLogger]
+        SIM[simulator: TrafficSimulator]
+        MDC[mdc: TraceContextResolver]
     end
     subgraph config [config]
-        CL[logging]
+        CL[LlmRuntimeConfig line rolling GlobalApiExceptionHandler]
     end
     C --> D
-    C --> SA
-    C --> SS
+    C --> LG
     C --> AG
-    SA --> DM
-    AG --> DM
-    SS --> SL
-    CL --> SL
+    C --> SIM
+    LG --> MDC
+    LG --> M
+    AG --> M
+    CL --> LG
+    T --> LG
 ```
 
 ## `config`
@@ -52,68 +50,20 @@ flowchart TB
 | Class | Role |
 |-------|------|
 | `LlmRuntimeConfig` | LLM provider / API key presence |
-
-## `config.logging`
-
-| Class | Role |
-|-------|------|
 | `LineBasedRollingFileAppender` | Rolling file appender; seeds line count on startup |
 | `LineCountTriggeringPolicy` | Roll after `maxLinesPerFile` physical newlines |
-
-## `domain.analysis`
-
-Immutable records — parser output and analyzer results.
-
-| Class | Role |
-|-------|------|
-| `LogEvent` | Parsed error + stack signature; `explicitCustomerId` |
-| `ErrorBreakdown` | Totals and splits (customer splits = explicit lines only) |
-| `LogAnalysisResult` | Full Java analysis + `toAgentPrompt()`; `FlaggedCustomer.windows[]` |
-
-## `service.analysis`
-
-| Class | Role |
-|-------|------|
-| `LogFileParser` | Lines → `LogEvent` |
-| `TraceContextResolver` | Propagate customer/order by `traceId` |
-| `LogFileAnalyzer` | Rules, grouping, `ErrorBreakdown`, flags |
-| `LogDirectoryService` | Active path, list rolled files, roll index ordering |
-
-## `service.simulator`
-
-| Class | Role |
-|-------|------|
-| `TrafficSimulator` | Scenario-based failures (no business logging) |
-
-## `service.logging`
-
-| Class | Role |
-|-------|------|
-| `RequestTraceFilter` | MDC `traceId` / `spanId` per HTTP request |
-| `TraceMdc` | MDC key names |
-| `ApiRequestContext` | Request attribute keys for traffic bodies |
-| `StructuredApiErrorLogger` | `API_FAILURE` structured lines; id hygiene |
 | `GlobalApiExceptionHandler` | Catch-all; log only `/api/v1/` paths |
 
-## `service.agent`
+Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appenders/policies only).
 
-| Class | Role |
-|-------|------|
-| `DualAgentOrchestrator` | Remediation then executive; shared Java input only |
-| `RemediationPlannerAgent` | Dev-lead runbook + evidence |
-| `ExecutiveReportAgent` | Product-owner brief (no technical evidence) |
-| `AgentStepResult` | Per-agent output metadata |
-| `AgentMarkdownFormatter` | Markdown newline normalization |
-| `GeminiRateLimitRetry` | 429 / quota helper |
-
-## `web.controller`
+## `controller`
 
 | Class | Role |
 |-------|------|
 | `TrafficController` | `simulate-batch`, `demo-flagging`, `simulate-single-trace-triple-error` |
 | `LogAnalysisController` | `GET /files`, `POST /analyze` |
 
-## `web.dto`
+## `dto`
 
 | Class | Role |
 |-------|------|
@@ -123,15 +73,54 @@ Immutable records — parser output and analyzer results.
 | `AnalyzeResponse` | Java result + `ruleFlags` + `agents` |
 | `RuleFlagSummary` | Flagged ids + detail lists |
 | `AgentReports` | Remediation + executive markdown |
+| `LogEvent` | Parsed error + stack signature; `explicitCustomerId` |
+| `ErrorBreakdown` | Totals and splits (customer splits = explicit lines only) |
+| `LogAnalysisResult` | Full Java analysis + `toAgentPrompt()`; `FlaggedCustomer.windows[]` |
+| `AgentStepResult` | Per-agent output metadata |
+| `RequestTraceFilter` | `@Component` filter — MDC `traceId` / `spanId` per HTTP request |
+| `TraceMdc` | MDC key names and request attribute keys |
+| `ApiRequestContext` | Request attribute keys for traffic bodies |
+
+## `service.agent`
+
+| Class | Role |
+|-------|------|
+| `DualAgentOrchestrator` | Remediation then executive; shared Java input only |
+| `RemediationPlannerAgent` | Dev-lead runbook + evidence |
+| `ExecutiveReportAgent` | Product-owner brief (no technical evidence) |
+| `AgentMarkdownFormatter` | Markdown newline normalization |
+| `GeminiRateLimitRetry` | 429 / quota helper |
+
+## `service.logs`
+
+| Class | Role |
+|-------|------|
+| `LogFileParser` | Lines → `LogEvent` |
+| `LogFileAnalyzer` | Rules, grouping, `ErrorBreakdown`, flags |
+| `LogDirectoryService` | Active path, list rolled files, roll index ordering |
+| `StructuredApiErrorLogger` | `API_FAILURE` structured lines; id hygiene |
+
+## `service.simulator`
+
+| Class | Role |
+|-------|------|
+| `TrafficSimulator` | Scenario-based failures (no business logging) |
+
+## `service.mdc`
+
+| Class | Role |
+|-------|------|
+| `TraceContextResolver` | Propagate customer/order by `traceId` |
 
 ## Tests
 
 ```text
 src/test/java/com/kgk/logsentinel/
-├── config/logging/          # LineCountTriggeringPolicy
+├── config/          # LineCountTriggeringPolicy
 └── service/
-    ├── analysis/            # Analyzer, trace resolver, multi-file, triple-error
-    └── agent/               # AgentMarkdownFormatter, GeminiRateLimitRetry
+    ├── agent/       # AgentMarkdownFormatter, GeminiRateLimitRetry
+    ├── logs/        # Analyzer, directory, StructuredApiErrorLogger
+    └── mdc/         # TraceContextResolver
 ```
 
 ## Resources & docs (repo layout)

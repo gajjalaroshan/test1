@@ -1,6 +1,7 @@
 package com.kgk.logsentinel.service.agent;
 
 import com.kgk.logsentinel.config.LlmRuntimeConfig;
+import com.kgk.logsentinel.dto.AgentStepResult;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
