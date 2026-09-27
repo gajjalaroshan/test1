@@ -16,6 +16,7 @@ public record LogEvent(
         String exceptionClass,
         String failureMessage,
         List<String> stackLines,
+        ErrorLocation errorLocation,
         boolean explicitCustomerId) {
 
     /**
@@ -40,6 +41,24 @@ public record LogEvent(
                 exceptionClass,
                 failureMessage,
                 stackLines,
+                errorLocation,
+                explicitCustomerId);
+    }
+
+    public LogEvent withErrorLocation(ErrorLocation errorLocation) {
+        return new LogEvent(
+                timestamp,
+                level,
+                message,
+                traceId,
+                spanId,
+                customerId,
+                orderId,
+                amountInr,
+                exceptionClass,
+                failureMessage,
+                stackLines,
+                errorLocation,
                 explicitCustomerId);
     }
 
@@ -126,6 +145,7 @@ public record LogEvent(
         }
 
         public LogEvent build() {
+            List<String> lines = List.copyOf(stackLines);
             return new LogEvent(
                     timestamp,
                     level,
@@ -137,7 +157,8 @@ public record LogEvent(
                     amountInr,
                     exceptionClass,
                     failureMessage,
-                    List.copyOf(stackLines),
+                    lines,
+                    null,
                     explicitCustomerId);
         }
     }

@@ -7,9 +7,9 @@ Packages are flat under `com.kgk.logsentinel` (see [docs/architecture/PACKAGE_ST
 | Area | Classes |
 |------|---------|
 | **controller** | `TrafficController`, `LogAnalysisController` |
-| **dto** | `AnalyzeRequest`, `AnalyzeResponse`, `TrafficRequest`, `RuleFlagSummary`, `AgentReports`, `LogFileEntry`, `LogEvent`, `ErrorBreakdown`, `LogAnalysisResult`, `AgentStepResult`, `RequestTraceFilter`, `TraceMdc`, `ApiRequestContext` |
+| **dto** | `AnalyzeRequest`, `AnalyzeResponse`, `TrafficRequest`, `RuleFlagSummary`, `AgentReports`, `LogFileEntry`, `LogEvent`, `ErrorLocation`, `StructuredApiError`, `ErrorBreakdown`, `LogAnalysisResult`, `AgentStepResult`, `RequestTraceFilter`, `TraceMdc`, `ApiRequestContext` |
 | **service.agent** | `DualAgentOrchestrator`, `RemediationPlannerAgent`, `ExecutiveReportAgent`, `AgentMarkdownFormatter`, `GeminiRateLimitRetry` |
-| **service.logs** | `LogFileParser`, `LogFileAnalyzer`, `LogDirectoryService`, `StructuredApiErrorLogger` |
+| **service.logs** | `LogFileParser`, `StackTraceLocationResolver`, `LogFileAnalyzer`, `LogDirectoryService`, `StructuredApiErrorLogger` |
 | **service.simulator** | `TrafficSimulator` |
 | **service.mdc** | `TraceContextResolver` |
 | **config** | `LlmRuntimeConfig`, `LineBasedRollingFileAppender`, `LineCountTriggeringPolicy`, `GlobalApiExceptionHandler` |
@@ -56,10 +56,11 @@ Following lines are stack traces; `LogFileParser` attaches them to the preceding
 
 ## Analysis semantics
 
-1. Parse lines → `LogEvent` list (`explicitCustomerId` true only when the message contained `customerId=`).
+1. Parse lines → `LogEvent` list (`LogFileParser` + `StackTraceLocationResolver` for `errorLocation`; `explicitCustomerId` true only when the message contained `customerId=`).
 2. `TraceContextResolver.resolve` — propagate `customerId`/`orderId` to other events on the same `traceId` for grouping only.
 3. **Explicit counting** — `errorBreakdown.byCustomerId`, `byCustomer` keys, and customer burst detection use `explicitCustomerId` only.
 4. **Trace slices** — for each explicit customer event, `byTraceId` includes all `API_FAILURE` errors on that trace (e.g. triple-error demo: total errors 3, explicit customer count 1, trace slice count 3).
+5. **Analyze JSON** — `javaAnalysis.errors[]` lists each `API_FAILURE` with `exceptionClass` and `errorLocation` (`className`, `line`, `column` null when not in stack). First `com.kgk.logsentinel` stack frame wins.
 
 `flaggedCustomers`: one record per flagged `customerId` with `windows[]` of burst windows that exceeded the distinct-stack threshold.
 

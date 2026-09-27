@@ -1,5 +1,6 @@
 package com.kgk.logsentinel.service.logs;
 
+import com.kgk.logsentinel.dto.ErrorLocation;
 import com.kgk.logsentinel.dto.LogEvent;
 import com.kgk.logsentinel.service.mdc.TraceContextResolver;
 import org.springframework.stereotype.Component;
@@ -35,7 +36,7 @@ public class LogFileParser {
             Matcher head = LINE_START.matcher(raw);
             if (head.matches()) {
                 if (current != null) {
-                    events.add(current.build());
+                    events.add(finish(current));
                 }
                 current = LogEvent.builder()
                         .timestamp(Instant.parse(head.group(1)))
@@ -58,9 +59,15 @@ public class LogFileParser {
             }
         }
         if (current != null) {
-            events.add(current.build());
+            events.add(finish(current));
         }
         return events;
+    }
+
+    private static LogEvent finish(LogEvent.Builder current) {
+        LogEvent event = current.build();
+        ErrorLocation location = StackTraceLocationResolver.resolve(event.stackLines());
+        return event.withErrorLocation(location);
     }
 
     private static void enrichFromLine(LogEvent.Builder builder, String rawLine, String message) {

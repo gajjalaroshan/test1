@@ -3,6 +3,7 @@ package com.kgk.logsentinel.service.logs;
 import com.kgk.logsentinel.dto.ErrorBreakdown;
 import com.kgk.logsentinel.dto.LogAnalysisResult;
 import com.kgk.logsentinel.dto.LogEvent;
+import com.kgk.logsentinel.dto.StructuredApiError;
 import com.kgk.logsentinel.service.mdc.TraceContextResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -80,16 +81,26 @@ public class LogFileAnalyzer {
         List<LogAnalysisResult.FlaggedOrder> flaggedOrders = flagHighValueOrders(errors);
         List<LogAnalysisResult.FlaggedCustomer> flaggedCustomers = flagCustomerStackBursts(errors);
         ErrorBreakdown breakdown = buildErrorBreakdown(errors);
+        List<StructuredApiError> structuredErrors = errors.stream().map(LogFileAnalyzer::toStructuredApiError).toList();
 
         return new LogAnalysisResult(
                 sourceLabel,
                 events.size(),
                 errors.size(),
                 breakdown,
+                structuredErrors,
                 byCustomer,
                 byOrder,
                 flaggedOrders,
                 flaggedCustomers);
+    }
+
+    private static StructuredApiError toStructuredApiError(LogEvent e) {
+        return new StructuredApiError(
+                nullToUnknown(e.customerId()),
+                nullToUnknown(e.orderId()),
+                e.exceptionClass(),
+                e.errorLocation());
     }
 
     private List<Path> orderForAnalysis(List<Path> logFiles) {

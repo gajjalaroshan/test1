@@ -7,7 +7,7 @@ com.kgk.logsentinel
 ├── LogSentinelApplication.java     # Bootstrap (@SpringBootApplication — scans subpackages)
 ├── config/                         # @Configuration, Logback appenders, @RestControllerAdvice
 ├── controller/                     # REST controllers
-├── dto/                            # HTTP records, trace/MDC, analysis model types, servlet filter
+├── dto/                            # HTTP/API JSON records, trace/MDC keys, analyze response model types
 └── service/
     ├── agent/                      # LLM agents, orchestrator, markdown, rate-limit retry
     ├── logs/                       # Log parse/analyze/directory, structured API error logging
@@ -27,7 +27,7 @@ flowchart TB
     end
     subgraph service [service]
         AG[agent: DualAgentOrchestrator agents ...]
-        LG[logs: LogFileAnalyzer parser directory StructuredApiErrorLogger]
+        LG[logs: LogFileAnalyzer parser StackTraceLocationResolver ...]
         SIM[simulator: TrafficSimulator]
         MDC[mdc: TraceContextResolver]
     end
@@ -65,6 +65,8 @@ Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appender
 
 ## `dto`
 
+HTTP/API shapes and analyze artifacts returned as JSON. No stack parsing or file I/O here.
+
 | Class | Role |
 |-------|------|
 | `TrafficRequest` | Batch traffic body (`scenarios`, ids, amount) |
@@ -73,7 +75,9 @@ Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appender
 | `AnalyzeResponse` | Java result + `ruleFlags` + `agents` |
 | `RuleFlagSummary` | Flagged ids + detail lists |
 | `AgentReports` | Remediation + executive markdown |
-| `LogEvent` | Parsed error + stack signature; `explicitCustomerId` |
+| `LogEvent` | Parsed error record + `stackSignature()`; `explicitCustomerId`; `errorLocation` set by `LogFileParser` |
+| `ErrorLocation` | `className` / `line` / `column` in analyze JSON |
+| `StructuredApiError` | One `javaAnalysis.errors[]` entry |
 | `ErrorBreakdown` | Totals and splits (customer splits = explicit lines only) |
 | `LogAnalysisResult` | `toRemediationPrompt()` / `toExecutivePrompt()` (+ `toAgentPrompt()` → remediation); `FlaggedCustomer.windows[]` |
 | `AgentStepResult` | Per-agent output metadata |
@@ -95,7 +99,8 @@ Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appender
 
 | Class | Role |
 |-------|------|
-| `LogFileParser` | Lines → `LogEvent` |
+| `LogFileParser` | Lines → `LogEvent` (attaches `ErrorLocation` via resolver) |
+| `StackTraceLocationResolver` | Pick first `com.kgk.logsentinel` `at` frame, else first `at` frame |
 | `LogFileAnalyzer` | Rules, grouping, `ErrorBreakdown`, flags |
 | `LogDirectoryService` | Active path, list rolled files, roll index ordering |
 | `StructuredApiErrorLogger` | `API_FAILURE` structured lines; id hygiene |
@@ -117,9 +122,10 @@ Referenced from `logback-spring.xml` as `com.kgk.logsentinel.config.*` (appender
 ```text
 src/test/java/com/kgk/logsentinel/
 ├── config/          # LineCountTriggeringPolicy
+├── dto/             # LogAnalysisResult prompt shaping (unit)
 └── service/
     ├── agent/       # AgentMarkdownFormatter, GeminiRateLimitRetry
-    ├── logs/        # Analyzer, directory, StructuredApiErrorLogger
+    ├── logs/        # Analyzer, directory, StructuredApiErrorLogger, StackTraceLocationResolver
     └── mdc/         # TraceContextResolver
 ```
 

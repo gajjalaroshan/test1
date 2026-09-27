@@ -61,6 +61,7 @@ class LogAnalysisResultPromptTest {
                 10,
                 2,
                 breakdown,
+                List.of(),
                 Map.of("cust-1", customerGroup),
                 Map.of("ord-1", new LogAnalysisResult.OrderGroup("ord-1", 2, 200_000.0)),
                 List.of(new LogAnalysisResult.FlaggedOrder("ord-1", "cust-1", 200_000, 150_000, "amount above threshold")),

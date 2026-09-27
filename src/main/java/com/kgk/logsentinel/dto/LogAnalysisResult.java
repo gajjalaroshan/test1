@@ -8,6 +8,7 @@ public record LogAnalysisResult(
         int totalEvents,
         int errorEvents,
         ErrorBreakdown errorBreakdown,
+        List<StructuredApiError> errors,
         Map<String, CustomerGroup> byCustomer,
         Map<String, OrderGroup> byOrder,
         List<FlaggedOrder> flaggedOrders,

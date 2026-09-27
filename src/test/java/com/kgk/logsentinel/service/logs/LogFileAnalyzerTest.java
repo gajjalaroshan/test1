@@ -38,6 +38,11 @@ class LogFileAnalyzerTest {
         assertEquals(4, result.errorBreakdown().totalApiFailureErrors());
         assertTrue(result.errorBreakdown().byCustomerId().containsKey("cust-burst-1"));
         assertEquals(4, result.errorBreakdown().byCustomerId().get("cust-burst-1").totalErrors());
+        assertEquals(4, result.errors().size());
+        assertEquals(
+                "com.kgk.logsentinel.simulation.TrafficSimulator",
+                result.errors().getFirst().errorLocation().className());
+        assertEquals(20, result.errors().getFirst().errorLocation().line());
     }
 
     @Test
